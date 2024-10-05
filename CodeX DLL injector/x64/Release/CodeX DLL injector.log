@@ -1,6 +1,7 @@
-﻿  Code wird generiert.
-  0 of 137 functions ( 0.0%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    0 functions had inline decision re-evaluated but remain unchanged
+﻿  CodeX DLL injector.cpp
+  Code wird generiert.
+  317 of 539 functions (58.8%) were compiled, the rest were copied from previous compilation.
+    4 functions were new in current compilation
+    41 functions had inline decision re-evaluated but remain unchanged
   Codegenerierung ist abgeschlossen.
-  CodeX DLL injector.vcxproj -> C:\Users\WeepingAngel\Desktop\CodeX Injector\Injectzor\CodeX DLL injector\x64\Release\CodeX DLL injector.exe
+  CodeX DLL injector.vcxproj -> D:\Desktop\CodeX Injector\Injectzor\CodeX Bodycam\x64\Release\CodeX DLL injector.exe

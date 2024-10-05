@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>D:\Desktop\CodeX Injector\Injectzor\CodeX Bodycam\x64\Release\CodeX DLL injector.exe</FullPath>
+      <FullPath>D:\Desktop\CodeX Injector\Injectzor\CodeX Bodycam\x64\Debug\CodeX DLL injector.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

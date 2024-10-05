@@ -4,6 +4,10 @@
 #include <ctime>
 #include <cstdlib>
 #include <string>
+#include <vector>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 // ASCII-Art
 void printAsciiArt()
@@ -66,6 +70,27 @@ DWORD getProcId(const wchar_t* procName)
     return procId;
 }
 
+std::wstring getCurrentDirectory()
+{
+    wchar_t buffer[MAX_PATH];
+    GetModuleFileNameW(NULL, buffer, MAX_PATH);
+    std::wstring::size_type pos = std::wstring(buffer).find_last_of(L"\\/");
+    return std::wstring(buffer).substr(0, pos);
+}
+
+std::vector<std::wstring> getDllFiles(const std::wstring& directory)
+{
+    std::vector<std::wstring> dllFiles;
+    for (const auto& entry : fs::directory_iterator(directory)) // Verwende fs::directory_iterator
+    {
+        if (entry.path().extension() == L".dll")
+        {
+            dllFiles.push_back(entry.path().filename().wstring());
+        }
+    }
+    return dllFiles;
+}
+
 int main()
 {
     // ASCII-Art anzeigen
@@ -75,19 +100,58 @@ int main()
     std::wstring randomTitle = generateRandomTitle();
     SetConsoleTitleW(randomTitle.c_str());
 
-    // Benutzer nach DLL-Pfad und Prozessnamen fragen
-    std::wstring dllPath;
+    // Aktuelles Verzeichnis erhalten
+    std::wstring currentDirectory = getCurrentDirectory();
+    std::wcout << L"[+] Current directory: " << currentDirectory << "\n";
+
+    // Alle DLL-Dateien im aktuellen Verzeichnis suchen
+    std::vector<std::wstring> dllFiles = getDllFiles(currentDirectory);
+
+    while (dllFiles.empty())
+    {
+        std::wcout << L"[-] No DLL files found in the current directory.\n";
+        std::wcout << L"[!] Please enter a directory path to search for DLL files: ";
+        std::wstring newDirectory;
+        std::wcin.ignore();  // Leere den Eingabepuffer
+        std::getline(std::wcin, newDirectory); // Benutzer nach einem neuen Verzeichnis fragen
+        dllFiles = getDllFiles(newDirectory);
+
+        if (!dllFiles.empty())
+        {
+            std::wcout << L"[+] DLL files found in the new directory.\n";
+            currentDirectory = newDirectory; // Aktualisiere das aktuelle Verzeichnis
+        }
+    }
+
+    // Benutzer eine DLL auswählen lassen
+    std::wcout << L"[+] Available DLLs:\n";
+    for (size_t i = 0; i < dllFiles.size(); ++i)
+    {
+        std::wcout << i + 1 << L". " << dllFiles[i] << "\n";
+    }
+
+    int choice = 0;
+    std::wcout << L"[+] Choose a DLL to inject by entering the corresponding number: ";
+    std::wcin >> choice;
+
+    // Sicherstellen, dass die Auswahl gültig ist
+    if (choice < 1 || choice > dllFiles.size())
+    {
+        std::wcerr << L"[-] Invalid selection.\n";
+        return 1;
+    }
+
+    // Pfad zur ausgewählten DLL erstellen
+    std::wstring dllPath = currentDirectory + L"\\" + dllFiles[choice - 1];
+    std::wcout << L"[+] Selected DLL: " << dllPath << "\n";
+
+    // Benutzer nach Prozessnamen fragen
     std::wstring procName;
-
-    std::wcout << L"Geben Sie den Pfad zur DLL ein: ";
-    std::getline(std::wcin, dllPath);
-
-    std::wcout << L"Geben Sie den Prozessnamen ein (z.B. GTA5.exe): ";
+    std::wcin.ignore(); // Eingabepuffer leeren
+    std::wcout << L"[!] Enter the Process Name (e.x. GTA5.exe): ";
     std::getline(std::wcin, procName);
 
-    std::wcout << L"[+] Using DLL path: " << dllPath << "\n";
     std::wcout << L"[+] Using process name: " << procName << "\n";
-
     std::wcout << L"[+] Attempting to get the process ID...\n";
 
     DWORD procId = 0;
