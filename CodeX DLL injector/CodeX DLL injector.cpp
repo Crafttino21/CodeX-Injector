@@ -91,6 +91,90 @@ std::vector<std::wstring> getDllFiles(const std::wstring& directory)
     return dllFiles;
 }
 
+// Manual Map Injection (Sichere Implementierung)
+bool ManualMap(HANDLE hProc, const std::wstring& dllPath)
+{
+    // DLL laden und in den Speicher mappen (ohne LoadLibrary)
+    HANDLE hFile = CreateFileW(dllPath.c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        std::wcerr << L"[-] Failed to open DLL file. Error code: " << GetLastError() << "\n";
+        return false;
+    }
+
+    DWORD fileSize = GetFileSize(hFile, NULL);
+    if (fileSize == INVALID_FILE_SIZE || fileSize == 0)
+    {
+        std::wcerr << L"[-] Invalid file size. Error code: " << GetLastError() << "\n";
+        CloseHandle(hFile);
+        return false;
+    }
+
+    BYTE* fileData = new BYTE[fileSize];
+    DWORD bytesRead;
+    if (!ReadFile(hFile, fileData, fileSize, &bytesRead, NULL) || bytesRead != fileSize)
+    {
+        std::wcerr << L"[-] Failed to read DLL file. Error code: " << GetLastError() << "\n";
+        delete[] fileData;
+        CloseHandle(hFile);
+        return false;
+    }
+    CloseHandle(hFile);
+
+    // PE-Header analysieren (optional für manuelles Mapping)
+    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)fileData;
+    PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)(fileData + dosHeader->e_lfanew);
+
+    // Speicher im Zielprozess für die DLL allokieren
+    LPVOID remoteMemory = VirtualAllocEx(hProc, NULL, ntHeaders->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!remoteMemory)
+    {
+        std::wcerr << L"[-] Failed to allocate memory in target process. Error code: " << GetLastError() << "\n";
+        delete[] fileData;
+        return false;
+    }
+
+    // Kopiere den Inhalt der DLL in den allokierten Speicher
+    if (!WriteProcessMemory(hProc, remoteMemory, fileData, ntHeaders->OptionalHeader.SizeOfHeaders, NULL))
+    {
+        std::wcerr << L"[-] Failed to write DLL headers to target process. Error code: " << GetLastError() << "\n";
+        VirtualFreeEx(hProc, remoteMemory, 0, MEM_RELEASE);
+        delete[] fileData;
+        return false;
+    }
+
+    // Kopiere alle DLL-Sektionen in den Speicher des Zielprozesses
+    PIMAGE_SECTION_HEADER sectionHeader = (PIMAGE_SECTION_HEADER)(fileData + dosHeader->e_lfanew + sizeof(IMAGE_NT_HEADERS));
+    for (int i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++, sectionHeader++)
+    {
+        if (!WriteProcessMemory(hProc, (LPVOID)((BYTE*)remoteMemory + sectionHeader->VirtualAddress), fileData + sectionHeader->PointerToRawData, sectionHeader->SizeOfRawData, NULL))
+        {
+            std::wcerr << L"[-] Failed to write section " << sectionHeader->Name << " to target process. Error code: " << GetLastError() << "\n";
+            VirtualFreeEx(hProc, remoteMemory, 0, MEM_RELEASE);
+            delete[] fileData;
+            return false;
+        }
+    }
+
+    // Entry-Point (DLLMain) in remote process ausführen (optional)
+    DWORD64 entryPoint = (DWORD64)((BYTE*)remoteMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
+    HANDLE hThread = CreateRemoteThread(hProc, NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
+    if (!hThread)
+    {
+        std::wcerr << L"[-] Failed to create remote thread. Error code: " << GetLastError() << "\n";
+        VirtualFreeEx(hProc, remoteMemory, 0, MEM_RELEASE);
+        delete[] fileData;
+        return false;
+    }
+
+    WaitForSingleObject(hThread, INFINITE);
+    CloseHandle(hThread);
+
+    std::wcout << L"[+] DLL successfully manual mapped.\n";
+    delete[] fileData;
+    return true;
+}
+
 int main()
 {
     // ASCII-Art anzeigen
@@ -174,56 +258,58 @@ int main()
     {
         std::wcout << L"[+] Process opened successfully.\n";
 
-        void* loc = VirtualAllocEx(hProc, 0, (dllPath.length() + 1) * sizeof(wchar_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        // Injection method selection
+        int injectMethod = 0;
+        std::wcout << L"[+] Choose injection method: \n1. LoadLibraryW\n2. Manual Map\n";
+        std::wcin >> injectMethod;
 
-        if (loc)
+        if (injectMethod == 1)
         {
-            std::wcout << L"[+] Memory allocated in the target process successfully at address: " << loc << "\n";
+            // LoadLibraryW Injection
+            void* loc = VirtualAllocEx(hProc, 0, (dllPath.length() + 1) * sizeof(wchar_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
-            if (WriteProcessMemory(hProc, loc, dllPath.c_str(), (dllPath.length() + 1) * sizeof(wchar_t), 0))
+            if (loc)
             {
-                std::wcout << L"[+] DLL path written to the target process successfully.\n";
+                std::wcout << L"[+] Memory allocated in the target process successfully at address: " << loc << "\n";
 
-                HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibraryW, loc, 0, 0);
-
-                if (hThread)
+                if (WriteProcessMemory(hProc, loc, dllPath.c_str(), (dllPath.length() + 1) * sizeof(wchar_t), 0))
                 {
-                    std::wcout << L"[+] Remote thread created successfully.\n";
-                    std::wcout << L"[+] Remote thread handle: " << hThread << "\n";
+                    std::wcout << L"[+] DLL path written to the target process successfully.\n";
 
-                    // Warten, bis der Remote-Thread abgeschlossen ist
-                    WaitForSingleObject(hThread, INFINITE);
+                    HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibraryW, loc, 0, 0);
 
-                    // Exit-Code des Remote-Threads abrufen
-                    DWORD exitCode;
-                    if (GetExitCodeThread(hThread, &exitCode))
+                    if (hThread)
                     {
-                        std::wcout << L"[+] Remote thread exited with code: " << exitCode << "\n";
-                        if (exitCode == 0)
-                        {
-                            std::wcerr << L"[-] LoadLibraryW failed in the remote process. Error code: " << GetLastError() << "\n";
-                        }
+                        std::wcout << L"[+] Remote thread created successfully.\n";
+                        WaitForSingleObject(hThread, INFINITE);
+                        CloseHandle(hThread);
                     }
                     else
                     {
-                        std::wcerr << L"[-] Failed to get remote thread exit code. Error code: " << GetLastError() << "\n";
+                        std::wcerr << L"[-] Failed to create remote thread. Error code: " << GetLastError() << "\n";
                     }
-
-                    CloseHandle(hThread);
                 }
                 else
                 {
-                    std::wcerr << L"[-] Failed to create remote thread. Error code: " << GetLastError() << "\n";
+                    std::wcerr << L"[-] Failed to write DLL path to the target process. Error code: " << GetLastError() << "\n";
                 }
             }
             else
             {
-                std::wcerr << L"[-] Failed to write DLL path to the target process. Error code: " << GetLastError() << "\n";
+                std::wcerr << L"[-] Failed to allocate memory in the target process. Error code: " << GetLastError() << "\n";
+            }
+        }
+        else if (injectMethod == 2)
+        {
+            // Manual Map Injection
+            if (!ManualMap(hProc, dllPath))
+            {
+                std::wcerr << L"[-] Manual map injection failed.\n";
             }
         }
         else
         {
-            std::wcerr << L"[-] Failed to allocate memory in the target process. Error code: " << GetLastError() << "\n";
+            std::wcerr << L"[-] Invalid injection method selected.\n";
         }
 
         CloseHandle(hProc);
