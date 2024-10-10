@@ -7,13 +7,17 @@ A simple LoadLibaryW DLL Injector for windows
 **DISCLAIMER: This is for education Purpose ONLY! I dont take any response for Game Bans or Harm!**
 
 
-# Version 1.1
-**Main Changes**
+# Version 1.1 + 1.2
+**Features**
 * [X] Put a DLL Detection in the code so you dont net to enter the path of the file
 * [X] Reworked the code
 * [X] Updated file signature (against AC)
 * [X] Make a protected version of the injector
 * [X] Manual Mapping (Testing so ONLY in Pre-release!)
+
+**Planed**
+* [ ] Bypass for BE and EAC (MAYBE!)
+* [ ] String Cleaner (to remove traces)
 
 **Should i use the Normal or Protected version?**
 What you should use is based on the game or process you wanna use:
@@ -25,9 +29,6 @@ What you should use is based on the game or process you wanna use:
 
 
 
-**Planed**
-* [ ] Bypass for BE and EAC (MAYBE!)
-* [ ] String Cleaner (to remove traces)
 
 # Status: Undetected (Not Contain EAC and BE)
 
