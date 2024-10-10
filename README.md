@@ -13,6 +13,7 @@ A simple LoadLibaryW DLL Injector for windows
 * [X] Reworked the code
 * [X] Updated file signature (against AC)
 * [X] Make a protected version of the injector
+* [X] Manual Mapping (Testing so ONLY in Pre-release!)
 
 **Should i use the Normal or Protected version?**
 What you should use is based on the game or process you wanna use:
@@ -25,9 +26,8 @@ What you should use is based on the game or process you wanna use:
 
 
 **Planed**
-- Made a ManualMap function for more secure
--  Bypass for BE and EAC (MAYBE!)
--  String Cleaner (to remove traces)
+* [ ] Bypass for BE and EAC (MAYBE!)
+* [ ] String Cleaner (to remove traces)
 
 # Status: Undetected (Not Contain EAC and BE)
 
